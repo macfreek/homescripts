@@ -1,0 +1,41 @@
+#!/usr/bin/expect -f
+#
+# Expect script to restart a
+# Linksys wireless router, which listens to 192.168.1.1
+# Downtime is about 5 seconds
+
+# Usage:
+# m h dom mon dow user  command
+# 59 17 * * * root /usr/local/sbin/reboot-midas 1> /dev/null
+
+# set address "192.168.1.1"
+set address "midas.macfreek.nl"
+# set address "145.99.148.34"
+
+spawn "telnet"
+expect "telnet>"
+send "open $address\r"
+expect {
+    "Unable to connect to remote host" { 
+        send_user "FAILED TO REBOOT\n"
+        exit 1
+    }
+    "Connected to $address.\r" { 
+        send_user "Connection established\n"
+    }
+}
+expect {
+    "Reject the connection request" {
+        send_user "FAILED TO REBOOT\n"
+        exit 1
+    }
+    "Password:" {
+        send_user "\[password prompt received\] "
+        send "@pple\r"
+    }
+}
+expect ">"
+send "sys reboot\r"
+expect "Connection closed by foreign host"
+send_user "\n"
+# expect eof

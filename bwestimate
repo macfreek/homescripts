@@ -1,0 +1,465 @@
+#!/usr/bin/perl
+use strict;
+use Pod::Usage;			# for pod2usage()
+use Getopt::Long;		# for GetOptions()
+
+# Make a not-so-intrusive estimate of the bandwidth
+
+# Written 2004-02-24 by Freek Dijkstra
+# Based on the implementation of Pinger by Les Cottrell:
+# send out pings of 8 and 1448 bytes in size.
+# the difference in arrival time will depend directly on the bandwidth.
+# Do it a few times for a better estimate.
+
+# output: <bandwidth in bit/s> <average delay in ms> <packet loss in percent>
+
+# requirements (Debian):
+#  you must have the ping from iputils-ping installed; the ping from netkit-ping 
+#  does not accept the -s option for regular users
+
+use constant VERSION       => "1.3";
+
+# Changelog
+# 2007-07-31  1.3  Freek Dijkstra
+#    Small change in scripted output, so it can be used with Cacti.
+# 2004-04-08  1.2  Freek Dijkstra
+#    Uses minimum RTT instead of average for multiple pings. Added note on 
+#    linespeed versus available bandwidth.
+# 2004-02-27  1.1  Freek Dijkstra
+#    Added usage information, support for ping versions without the -w option,
+#    Checks for unknown host errors, variable payload, support for human 
+#    reabable output.
+# 2004-02-24  1.0  Freek Dijkstra
+#    Inital release.
+
+use vars qw( $count $host $human );
+use vars qw( $opt_version $opt_help $opt_man $opt_sync );
+
+$human = 1;			# human-readable output
+$opt_sync = 1;		# Asume synchronize connection:
+					# upload bw = download bw. (multiplies output by 2)
+
+Getopt::Long::Configure("bundling", "no_ignore_case");
+GetOptions
+	("c=i"              => \$count,
+	 "h|human"          => \$human,
+	 "H|script"         => sub { $human = 0 },
+	 "sync"             => \$opt_sync,
+	 "async"            => sub { $opt_sync = 0 },
+	 "version|V"        => \$opt_version,
+	 "help|?"           => \$opt_help,
+	 "man"              => \$opt_man,
+	) or pod2usage(-verbose => 0);
+
+pod2usage(-verbose => 1)  if ($opt_help);
+pod2usage(-verbose => 2)  if ($opt_man);
+if ($opt_version) {
+	print "$0 ",VERSION,"\n";
+	exit;
+}
+
+# Exactly one argument is required
+if (scalar(@ARGV) != 1) {
+	print "Exactly one argument is required, ",scalar(@ARGV)," given\n";
+	pod2usage(-verbose => 0)
+}
+
+$host = $ARGV[0];
+$count = 1 if (!$count);
+
+# Sizes of payloads (small and big one)
+# See =item $pls $plb in man section for details
+my $pls = 8;		# small payload
+my $plb = 1448;		# big payload
+
+# Speed of light in fiber
+my $speedoflight = 190;  # km/ms.
+
+# See =item $overhead in man section for details
+my $overhead = 8;
+
+# Output values
+my $bandwidth;
+my $delay;
+my $packetloss;
+
+# First do a single ping to trigger any lookups, like arp 
+# (typically, for very-high speed uncongested networks, the first ping takes  
+# twice as long as the rest; on the regular internet it is about 20% slower)
+my $optw = '-w 10';
+my $result = `ping -c 1 -s 8 $optw $host 2>&1`;
+my $regexp = '';
+if ($result =~ /illegal option \-\- w/ ) {
+	# The -w option specifies a time out. We _asume_ that this version has an 
+	# internal time-out and continue
+	$optw = '';
+	# It did not work, so try again:
+	$result = `ping -c 1 -s 8 $optw $host 2>&1`;
+};
+if ($result =~ /transmitted, 0 received/ ) {
+	# Packet lost; try again before giving up
+	$result = `ping -c 1 -s 8 $optw $host 2>&1`;
+}
+if ($result =~ /unknown host/ ) {
+	# No DNS entry for host
+	# print STDERR $result;
+	die ("Unknown host $host");
+} elsif ($result =~ /No route to host/ ) {
+	# No DNS entry for host
+	# print STDERR $result;
+	die ("No route to host $host");
+}
+
+if ($result =~ /Operation not permitted/ ) {
+	die "Incompatible version of ping. Try the iputils-ping or the BSD version. ping -s option not permitted";
+} elsif ($result =~ /round-trip min\/avg\/max/ ) {
+	#	Ooutput format:
+	# 	PING myhost (10.11.12.13) from 145.99.200.82 : 56(84) bytes of data.
+	# 	64 bytes from myhost (10.11.12.13): icmp_seq=1 ttl=251 time=17.3 ms
+	# 	--- myhost ping statistics ---
+	# 	3 packets transmitted, 3 packets received, 0% packet loss
+	# 	round-trip min/avg/max = 16.68/17.035/17.371 ms
+	$regexp = 'round\-trip \S+ = [0-9.]+\/([0-9.]+)\/[0-9.]+';
+} elsif ($result =~ /rtt min\/avg\/max\/mdev/ ) {
+	#	Ooutput format:
+	# 	PING myhost (10.11.12.13): 56 data bytes
+	# 	64 bytes from 10.11.12.13: icmp_seq=0 ttl=251 time=17.057 ms
+	# 	--- myhost ping statistics ---
+	# 	3 packets transmitted, 3 received, 0% loss, time 2020ms
+	# 	rtt min/avg/max/mdev = 16.176/17.454/18.836/1.093 ms
+	$regexp = 'rtt \S+ = [0-9.]+\/([0-9.]+)\/[0-9.]+';
+} elsif ($result =~ /transmitted, 0 received/ ) {
+	print STDERR "All packets lost after two tries. Giving up";
+	$bandwidth = 0;;
+	$delay = 0;
+	$packetloss = 100;
+	goto PRINTRESULTS;
+} elsif ($result =~ /Warning/ ) {
+	die "ping -c 1 -s 8 -w 10 $host issued a warning. bwestimate.pl aborted";
+} else {
+	# print "--\n$result\n--\n";
+	die "Version of ping with unrecognized output. Try the iputils-ping or the BSD version. bwestimate.pl aborted";
+}
+
+PINGTEST:
+	
+my $resultS = `ping -c $count -s $pls $optw $host`;
+my $resultB = `ping -c $count -s $plb $optw $host`;
+
+my $receivedcount = 0;
+my ($delayS, $delayB);
+
+if (!(($delayS) = ( $resultS =~ m/$regexp/ ))) {
+	die "Could not find a delay using ping -c $count -s $pls $optw $host";
+}
+$resultS =~ m/transmitted, (\d+)( packets)? received/;
+# TODO: Check if $1 was really found
+$receivedcount =+ $1;
+
+if (!$delayS) {
+}
+
+if (!(($delayB) = ( $resultB =~ m/$regexp/ ))) {
+	die "Could not find a delay using ping -c $count -s $plb $optw $host";
+}
+$resultB =~ m/transmitted, (\d+)( packets)? received/;
+# TODO: Check if $1 was really found
+$receivedcount += $1;
+
+
+# extrapolate to ping packet of size 0:
+$delay = ($delayS * ($plb+$overhead) - $delayB * ($pls+$overhead)) / ($plb - $pls);
+if ($delay < 0) {
+	# extrapolation gives RTT less then 0 ms.
+	die "Time difference between $delayS and $delayB too big for a good estimate of delay";
+	$delay = 0;
+}
+
+my $timediff = $delayB - $delayS;
+if (($timediff / $delayS) < 0.01) {
+	# time difference not big enough for a good comparison
+	# TODO: use standard deviation instead of fixed value if devation result is known.
+	die "Time difference between $delayS and $delayB is too small for a good estimate of bandwidth";
+	$bandwidth = 0;;
+} else {
+	# factor 8: byte -> bit; factor 1000: ms -> sec.
+	# round down
+	$bandwidth = 8*1000*($plb-$pls)/$timediff;
+}
+
+$packetloss = 100 * (2*$count - $receivedcount) / (2*$count);
+
+# The measured bandwidth is the inverse sum of the bandwidth in each direction
+# (the upload and the download bandwidth). If these are equal, the 
+# measured result is exactly half of these bandwidth. Double for easier 
+# interpretation of the result.
+$bandwidth = 2*$bandwidth if ($opt_sync);
+
+PRINTRESULTS:
+
+if ($human) {
+	printf "Bandwidth: %9d bit/s (%d kiByte/s)\nDelay: %13.3f ms\nPacketloss: %8d%%\n",
+			$bandwidth,($bandwidth/8192),$delay,$packetloss;
+#	printf "Bandwidth: %9d bit/s (%d kiByte/s)\nDelay: %13.3f ms    (%d km at most)\nPacketloss: %8d%%\n",
+#			$bandwidth,($bandwidth/8192),$delay,($delay*$speedoflight),$packetloss;
+	if ($opt_sync) {
+		print "Note: Reported bandwidth is inverse average of up- and download bandwidth.\n";
+	} else {
+		print "Note: Reported bandwidth is inverse sum of up- and download bandwidth.\n";
+	}
+} else {
+	printf "bandwidth:%d delay:%.3f packetloss:%d",$bandwidth,$delay,$packetloss;
+}
+
+__END__
+
+=head1 NAME
+
+B<bwestimate> - Estimates the available bandwidth using ping
+
+=head1 SYNOPSIS
+
+ bwestimate [-c count] [-h|-H|--human|--script] hostname
+ bwestimate --help | --man
+
+ Options:
+    -c | --count     Specifies the number of pings to sent
+    -h | --human     Human readable output
+    -H | --script    Script readable output
+
+    --help | -?      Prints usage information
+    --man            Prints verbose usage information
+    --version | -V   Prints version
+
+=head1 DESCRIPTION
+
+bwestimate uses two ping packets to measure the available bandwidth. The
+first packet is small, and the second packet is large. The larger packet 
+will take longer to return, because of the limitation of the bandwidth.
+
+The small packet is 16 bytes, and the large packet is 1452 bytes. As
+long as the packet is not split (it must be smaller then 1500 bytes for
+ethernet), the round trip time (RTT) will be linear to the packet size:
+
+RTT = size * bandwidth + delay
+
+Where RTT is the round trip time, size is the packet size, and delay is
+the delay is the delay due to the physical speed of the signal and the
+fibre length.
+
+Because two pings of different size are sent, both the bandwidth and
+the delay due to the physical fibre length can be measured. However,
+both suffer from certain inaccuracy:
+
+B<delay>: Though the payload of the IP datagram is known, the number of
+bytes that goes over the wire is not know, because that also depends on
+the overhead for the lower layers. This highly differs for the type of
+connections that are used (IPv4 or IPv6; PPP, ethernet or ATM, etc.).
+This makes it hard, if not impossible to calculate which part of the
+delay is due to the length of the physical wire, which is due to the
+header overhead and which is due to the processing speed of the hosts
+involved. Typically, for larger distances (10 kilometer and up), the
+latency is almost completely due to the cable distance. Feel free to do
+calculations yourself: the speed of light is 299792458 m/s, and the
+speed of signals in electrical wires or glass fibres is between 1.50
+and 1.60 times slower, so about 185 to 200 kilometer per millisecond.
+
+B<bandwidth>: The measured bandwidth is a combination of the bandwidth
+each direction: the upload and the download bandwidth. The result is the
+inverse average of the two. So:
+
+            2                  1                    1
+    ------------------ = ---------------- + ------------------
+    measured bandwidth   upload bandwidth   download bandwidth
+
+If your upload and download bandwidth are equal, the measured bandwidth
+is equal that of the measured bandwidth. If you have and asynchronous
+upload and download speed, the measured bandwidth will be slightly
+slower then the slowest of the two. For example, if your upload
+bandwidth is 1024 kbit/s and download bandwidth is 8192 kbit/s, then the
+result of uncongested measurement would be 1820 kbit/s.
+
+From the description above it is not immediately clear what is
+measured: the actual linespeed or the available bandwidth (the
+linespeed minus the part already in use by other streams). This is
+unclear, and will highly depend on what a switch or router will do in
+case of congestion: will it buffer the packet or will it drop the
+packet. In addition, it is highly dependant on the behaviour of the
+sending host. Often, sending hosts will buffer the traffic for a short
+while before sending out a burst of data. To be honest, I do not know
+what exactly I measure :-). I expected that the reported output would
+closely resemble the available bandwidth, but is seems that in
+practice, I get a very constant number, which I expect is the
+linespeed. If you have any insight on this matter, feel free to share
+it with the author.
+
+If you want to measure the available bandwidth or both download and
+upload bandwidth separately, you will have to resort to regular
+methods, like using iperf, netperf or udpmon. However, those tools have
+their own problems: For TCP, slowstart and resending of packets. For
+UDP, the very intrusive nature.
+
+This tool is a fast method to estimate the bandwidth with certain
+accuracy, while it is hardly intrusive.
+
+To increase accuracy, this script first sends out a single ping to
+trigger all sorts of cache lookups. Typically, these trigger ARP
+request if you are sending to a previously unknown host. On very high
+speed dedicated lines, the first ping takes about twice as long as the
+rest of the pings. On the regular Internet, the first ping takes about
+20% longer.
+
+In addition, the scripts sent more then one ping to increase the
+accuracy.
+
+This technique is based on an idea by Connie Logg and Les Cottrell of
+Stanford Linear Accelerator Center (SLAC). Pinger, written by SLAC, is
+a similar tool as this tool, which also makes an estimate on the
+available bandwidth based on the packet loss, However, pinger comes has
+an integrated database mechanism, while this tool was specifically
+designed to be used from the command line, or as a input source for an
+external database (e.g. Cacti).
+
+=head1 OPTIONS
+
+=over
+
+=item B<-c> | B<--count>
+
+Number of pings to sent each time it is called. The total number of
+pings is approximately 2*count + 1. The approximate time this script
+takes to finish is 2*(count-1) seconds. More pings are more accurate,
+but take longer. If nothing is specified, count is set to 1, giving
+almost instant result, and seems accurate within 10%.
+
+=item B<-h> | B<--human>
+
+Human-readable output. Opposite of -H option. Whichever is specified
+last is used. If nothing is specified, output it human readable.
+
+=item B<-H> | B<--script>
+
+Script-readable output. Opposite of -h.
+
+Output is in format: C<E<lt>bandwidth in bit/sE<gt> E<lt>average delay
+in msE<gt> E<lt>packet loss in percentE<gt>>, not followed by a carriage
+return.
+
+In case of errors, the program will continue to sent human-readable
+messages to STDERR, and print nothing to STDOUT. If all packets are
+lost, the output will be "0 0.000 100". Be aware that the bandwidth and
+delay of 0 are incorrect results. Your script may want to check for
+these conditions.
+
+=item B<--help> | B<-?>
+
+Print short usage information and exists.
+
+=item B<--man>
+
+Prints verbose usage information and exists.
+
+=item B<--version> | B<-V>
+
+Prints the version and exists.
+
+=back
+
+=head1 REQUIREMENTS
+
+Some versions of ping may cause problems. The version included in MacOS
+X.3 works fine. For Debian, the version included with netkit-ping does
+not accept the -s option for regular users. The version in iputils-ping
+should be used.
+
+=head1 INTERNAL PARAMETERS
+
+Rationale for choosing certain parameter sizes
+
+=over
+
+=item S<$pls = 8>
+
+=item S<$plb = 1448>
+
+$pls (small payload) and $plb (big payload) contain the sizes of the
+ICMP data. Use a minimum of 8 so that ping can include time data. Use a
+maximum of 1472, so that everything fits in an ethernet frame (1500
+bytes - 20 byte IP header - 8 byte ICMP header). Of course you can make
+it higher if you have jumbo frames enabled (typically 8192 or 9000
+bytes; but if you have something like that, you probably know it better
+yourself)
+
+=item S<$overhead = 8>
+
+The reported bandwidth is that of the IP load, so excluding all
+the bits in headers. This overhad is the correction for the payload of
+the ICMP header (8 bytes), but not for the rest. Beside the obvious IP
+header (20 bytes per packet for IPv4 or 40 bytes for IPv6), it may
+include an ethernet head and tail (26 to 72 bytes per 1500 bytes data,
+depending on the padding), or if you use a dial connection, you most
+likely have a PPP head and tail (typically 8 bytes per packet, but LCP
+negotiation may change it to 7-10 bytes). Last, for ADSL, you most
+likely use PPPoA (PPP over ATM), where the PPP header is only 2 bytes
+per packet (all the HDLC framing is skipped), but ATM splits your 1502
+byte (or less) packet into 53-byte cells with 5 byte header and 48 byte
+payload.
+
+So if you wonder why your 1024 kbps ADSL only transfers 107.6 kiByte/s, 
+here it is. You do the calculation, OK? Don't forget the TCP header (20 
+bytes of more) or UDP header (8 bytes), do you? And the difference between
+kilo (1000) and kibi (1024). And the overhead due to periodic PAP or CHAP 
+renegotiations. And to tune the kernel settings (like TCP buffer size). 
+And did you wait for TCP slow start to stabilize? Good, then you surely 
+discovered that ADSL provider have a factor 25 overbooking (25 customers 
+on a single line), making this nit-picking irrelevant :-)
+
+=back
+
+=head1 BUGS
+
+There are a few different versions of ping. Beside the slightly
+different output format, the parameters are different. In particular,
+the -w and -s options of ping may cause problems.
+
+C<ping -w (max time-out)> is first tried, because some versions of ping
+will wait forever for the first ping to return if a host is unreachable.
+If this gives an error, ping is called without the -w option, assuming
+it does not wait forever.
+
+C<ping -s (packetsize)> is used, but some versions of ping only allow the
+superuser to use this option. This script attempts to recognize this
+error, and abort if it is found.
+
+Currently C<ping> is always used. Support for C<ping6> to support IPv6 is 
+planned.
+
+Script assumes 2*count pings are sent. Some versions of ping may sent
+more in case of packet loss. Also, ping with a smaller load is less
+likely to give packet loss then ping with a bigger payload. The reported
+packet loss is based on the average. More appropriate for normal use is
+to only count the bigger payloads (though it is less precise due to less
+data). In addition, a better check for output format of packet loss is
+desired. Update is planned.
+
+The distance estimate based on the delay (delay*190 km/ms) was way too 
+much off, and was left out.
+
+The accuracy could be improved by doing a least square fit, and sending 
+more then two sizes of packets.
+
+=head1 AUTHOR
+
+Freek Dijkstra <fdijkstr@science.uva.nl>
+
+=head1 SEE ALSO
+
+L<ping(8)>, pinger
+
+For more information on pinger, see L<http://www-iepm.slac.stanford.edu/monitoring/big-pkts/colorado.html>
+
+=head1 EXAMPLES
+
+bwestimate loopback0.gw4.phl1.alter.net
+
+=cut

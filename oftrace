@@ -1,0 +1,5 @@
+#!/usr/sbin/dtrace -s
+syscall::open*:entry
+{
+    printf("%d %s %s", timestamp, execname, copyinstr(arg0));
+}

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+osascript -e \
+'tell application "Finder"' -e \
+  "display dialog \"$1\"" -e \
+'end tell'
+
+#  'activate' -e \

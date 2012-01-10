@@ -1,0 +1,45 @@
+#!/usr/bin/expect -f
+# Private script:
+# log in to mickey, grep an ip address on auth.log, and transfer the file 
+# back to the local machine. Assumes no password needed to log in (ssh 
+# key), and read permission on auth.log
+
+set remoteprompt "freek@mickey"
+set localprompt "freek@dagobert"
+set server "mickey.macfreek.nl"
+
+if {[llength $argv] > 0} {
+    set ipaddress [lindex $argv 0]
+} else {
+    send_user "Usage: fetchiplog <ipaddress>\n"
+}
+set logfile "$ipaddress.log"
+send_user "fetching logfile $logfile\n"
+
+spawn zsh
+expect $localprompt
+send "ssh $server.\r"
+expect "Linux mickey"
+expect $remoteprompt
+send "echo '# This logfile was fetched from $server ('`resolveip -s $server`') on '`date`'. All times are in '`date '+%Z (UTC%z)'`'.' > $logfile\r"
+expect $remoteprompt
+send "grep $ipaddress /var/log/auth.log.0 >> $logfile\r"
+expect $remoteprompt
+send "grep $ipaddress /var/log/auth.log >> $logfile\r"
+expect $remoteprompt
+send "logout\r"
+expect "Connection to mickey.macfreek.nl. closed."
+expect $localprompt
+send "scp freek@mickey.macfreek.nl:$logfile ./\r"
+expect $localprompt
+send "ssh mickey.macfreek.nl.\r"
+expect "Linux mickey"
+expect $remoteprompt
+send "rm -f $logfile\r"
+expect $remoteprompt
+send "logout\r"
+expect "Connection to mickey.macfreek.nl. closed."
+expect $localprompt
+send "exit\r"
+expect eof
+exit

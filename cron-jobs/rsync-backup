@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Warning: you should only run this as root (TODO: add check for that)
+# Note: rsync shipped with Tiger (10.4) has a bug (rdar:4341198)
+# It does not copy the resource forks correctly (when using the -E flag),
+# Rsync as shipped with Leopard (10.5) works fine. If you are still using an 
+# older version of Mac OS X, look into rsync as shipped with rsyncX (free).
+
+PATH=/usr/local/bin:/bin:/usr/bin
+
+# Backup folders
+
+date; echo "Synchronizing Music folder"
+rsync -ax -E --delete   /Users/Shared/Music/     /Volumes/Media/Music
+date; echo "Synchronizing Pictures folder"
+rsync -ax -E --delete   /Users/Shared/Pictures/  /Volumes/Media/Pictures
+
+# Backup disks
+
+date; echo "Synchronizing Users disk"
+rsync -ax -E --delete   /Users/          "/Volumes/Users FW"
+date; echo "Synchronizing Applications disk"
+rsync -ax -E --delete   /Applications/   "/Volumes/Applications BU"
+date; echo "Synchronizing SystemX disk"
+rsync -ax -E --delete   /                "/Volumes/SystemX BU"

@@ -1,0 +1,29 @@
+# m h dom mon dow user  command
+# weekday, working hours
+# (enable 1-minute schedule during interesting weeks)
+# */5 7-18 * * 1-5 www-data /usr/local/sbin/fetchwebcamimage
+*/2 7-18 * * 1-5 www-data /usr/local/sbin/fetchwebcamimage
+# */1 7-18 * * 1-5 www-data /usr/local/sbin/fetchwebcamimage
+
+# daylight, non-working hours
+*/5 19-20      *  3 * www-data /usr/local/sbin/fetchwebcamimage
+*/5 6,19-21    *  4 * www-data /usr/local/sbin/fetchwebcamimage
+*/5 5-6,19-22 * 5-7 * www-data /usr/local/sbin/fetchwebcamimage
+*/5 6,19-22    *  8 * www-data /usr/local/sbin/fetchwebcamimage
+*/5 19         *  9 * www-data /usr/local/sbin/fetchwebcamimage
+*/5 19         * 10 * www-data /usr/local/sbin/fetchwebcamimage
+# weekend
+*/5 7-18      * * 0,6 www-data /usr/local/sbin/fetchwebcamimage
+
+# night
+# jan, dec: actually 0-7,18-23; nov: 0-6,18-23
+*/20 0-6,19-23 *  1 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,19-23 *  2 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,21-23 *  3 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-5,22-23 *  4 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-4,23   * 5-7 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-5,23    *  8 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,20-23 *  9 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,20-23 * 10 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,19-23 * 11 * www-data /usr/local/sbin/fetchwebcamimage
+*/20 0-6,19-23 * 12 * www-data /usr/local/sbin/fetchwebcamimage

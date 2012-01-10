@@ -1,0 +1,92 @@
+#!/usr/bin/php -q
+<?php
+
+include_once 'Console/Getopt.php';
+
+list($options, $arguments) = Console_Getopt::getopt($argv, "n:iv", array("newline=", "i"));
+
+$options = flattenOptions($options);
+
+if (count($arguments) < 2)
+	usage();
+
+if (isset($options['--newline']))
+	$options['n'] = $options['--newline'];
+if (!empty($options['n'])) {
+	// $newline = $options['n'];
+	$newline = stripcslashes($options['n']);
+} else {
+	$newline = "\n";
+}
+
+$regexp = $arguments[0];
+if ($regexp{0} != '/') {
+	$regexp = '/'.$regexp.'/m';
+}
+if (isset($options['i'])) {
+	$regexp .= 'i';
+}
+$inverse = (isset($options['v']));
+if (!empty($arguments[1])) {
+	$file = $arguments[1];
+} else {
+	$file = "php://stdin"; // use stdin
+}
+
+/*
+echo "file    = $file\n";
+echo "regexp  = $regexp\n";
+echo "newline = ".addcslashes($newline, "\0..\37!@\177..\377")." (".strlen($newline)." char)\n";
+*/
+
+$handle = fopen($file, "r");
+if (!$handle) {
+	echo "Couldn't open file $file\n";
+	usage();
+}
+$buffer = "";
+while (!feof($handle)) {
+	// echo "add bufferspace\n";
+	$buffer .= fread($handle, 8000);
+	while (($pos = strpos($buffer, $newline)) !== false) {
+		// echo "pos = $pos, length = ".strlen($buffer)."\n";
+		if ($pos != 0) 
+			parseItem(substr($buffer, 0, $pos), $regexp, true);
+		$buffer = substr($buffer, $pos+strlen($newline));
+	}
+}
+if ($buffer)
+	parseItem($buffer, $regexp, false);
+fclose($handle);
+
+function parseItem($item, $regexp, $withnewline)
+{
+	global $newline, $inverse;
+	if ($inverse xor preg_match($regexp, $item)) {
+		//echo "match($regexp, $item)\n";
+		echo "$item";
+		if ($withnewline)
+			echo $newline;
+	} else {
+		//echo "nonmatch($regexp, $item)\n";
+	}
+}
+
+function flattenOptions($array) 
+{
+	$flatArray = array();
+	foreach( $array as $subElement ) {
+		if( is_array($subElement) )
+			$flatArray[$subElement[0]] = (empty($subElement[1]) ? true : $subElement[1]);
+	}
+	return $flatArray;
+} 
+ 
+function usage() {
+	echo "grep.php -i --newline='\\r' pattern file\n";
+	exit;
+}
+
+
+
+?>

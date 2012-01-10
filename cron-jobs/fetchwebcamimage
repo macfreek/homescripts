@@ -1,0 +1,15 @@
+#!/bin/sh
+
+URL=http://zilverslang.macfreek.nl./IMAGE.JPG
+DIR=/home/www/webcam/archive/`date "+%Y-%m-%d"`           
+# DIR=/home/www/webcam/archive
+FILE="webcam"`date "+%Y%m%d%H%M%S"`".jpg"
+USER=macfreek
+PASS=Ryan75
+
+# echo "DIR: $DIR FILE: $FILE\n"
+if [ ! -d $DIR ]
+then
+  mkdir -p $DIR
+fi
+curl -s -u $USER:$PASS $URL -o $DIR/$FILE

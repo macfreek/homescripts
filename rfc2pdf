@@ -1,0 +1,36 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]
+then
+  echo "Usage: $0 [draft or rfc]" >&2
+  exit 1
+fi
+
+# remove .txt extension if present
+draft=${1%.txt}
+
+if [ ! -f "${draft}.txt" ]
+then
+	if [ ${draft:0:3} = "rfc" ]
+	then
+    	wget "http://www.ietf.org/rfc/${draft}.txt"
+	elif [ ${draft:0:6} = "draft-" ]
+	then
+    	wget "http://www.ietf.org/internet-drafts/${draft}.txt"
+	elif [ ${draft:0:7} = "http://" ]
+	then
+    	wget "${draft}.txt"
+	fi
+fi
+
+if [ ! -f "${draft}.txt" ]
+then
+	echo "No such file ${draft}.txt; also don't know how to download it"
+	exit
+fi
+
+
+enscript -p $draft.ps -M A4 --margins=72:24:72:24 $draft.txt
+pstopdf $draft.ps
+rm $draft.ps
+
