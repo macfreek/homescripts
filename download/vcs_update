@@ -1,0 +1,40 @@
+#!/bin/sh
+for i in `ls -d */CVS`;
+do
+	# remove "/CVS" part of string i
+	i=${i%/CVS}
+	echo $i:
+	cd $i
+	cvs update -d -P
+	cd ..
+done
+
+for i in `ls -d */.svn`;
+do
+	# remove "/.svn" part of string i
+	i=${i%/.svn}
+	echo $i:
+	cd $i
+	svn update --ignore-externals
+	cd ..
+done
+
+for i in `ls -d */.git`;
+do
+	# remove "/.git" part of string i
+	i=${i%/.git}
+	echo $i:
+	cd $i
+	git pull --all
+	cd ..
+done
+
+for i in `ls -d */.rsync`;
+do
+	remote=`cat $i` # note: must end with a slash
+	# remove "/.rsync" part of string i
+	i=${i%/.rsync}
+	echo $i:
+    rsync -avz $remote $i
+done
+
