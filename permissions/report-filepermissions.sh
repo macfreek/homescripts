@@ -7,7 +7,8 @@ if [ -d "/Volumes/Media" ]; then
 fi
 
 # find executable files, which are not really an executable
-find /Users -type f -perm +111 -exec /usr/local/bin/reportexecutablepermission.sh {} \;
+executablepermissionscript=`dirname "$0"`/reportexecutablepermission.sh
+find /Users -type f -perm +111 -exec $executablepermissionscript {} \;
 
 # find files with incorrect owner
 find /Users/freek    ! -user freek    -exec echo '{}: not owned by freek' \;
