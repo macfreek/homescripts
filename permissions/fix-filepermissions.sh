@@ -4,6 +4,9 @@
 find /Users -name "SyncTemp*" -exec rm -f {} \; -exec echo '{}: deleted' \;
 find /Users -name ".AppleDouble" -exec rm -rf {} \; -exec echo '{}: deleted' \;
 
+# find non-executable folders
+find /Users -type d ! -perm -500 -exec chmod u+rx {} \; -exec echo '{}: added browsable and readable bit' \;
+
 # find world writable files
 find /Users/freek /Users/caroline /Users/Shared -perm +002 ! -type l -exec chmod o-w {} \; -exec echo '{}: removed world writable bit' \;
 if [ -d "/Volumes/Media" ]; then
