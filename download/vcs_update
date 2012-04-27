@@ -9,6 +9,15 @@ do
 	cd ..
 done
 
+for i in `ls -d */.rsync`;
+do
+	remote=`cat $i` # note: must end with a slash
+	# remove "/.rsync" part of string i
+	i=${i%/.rsync}
+	echo $i:
+    rsync -avz $remote $i
+done
+
 for i in `ls -d */.svn`;
 do
 	# remove "/.svn" part of string i
@@ -25,16 +34,16 @@ do
 	i=${i%/.git}
 	echo $i:
 	cd $i
-	git pull --all
+	git fetch --all
 	cd ..
 done
 
-for i in `ls -d */.rsync`;
+for i in `ls -d */.hg`;
 do
-	remote=`cat $i` # note: must end with a slash
-	# remove "/.rsync" part of string i
-	i=${i%/.rsync}
+	# remove "/.hg" part of string i
+	i=${i%/.hg}
 	echo $i:
-    rsync -avz $remote $i
+	cd $i
+	hg pull
+	cd ..
 done
-
