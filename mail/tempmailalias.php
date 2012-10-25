@@ -1,19 +1,25 @@
 #!/usr/bin/php -q
 <?php
 
-$filename = "mailalias";
-$filedir = getenv("HOME");
+//$filename = "/etc/postfix/virtual";
+//$filedir = "getenv("HOME");
 //$filedir = dirname(__FILE__);
+$file = "/etc/postfix/virtual";
+$tempfile = "/tmp/virtual.temp";
 
-$today = time();
+$runafter = "/usr/sbin/postmap /etc/postfix/virtual";
+
+// Take a day a bit in the future, as cron may run later during the day.
+$today = time()+20*3600;
 //$today = mktime(0,0,0,2,15,1981);
 $day1ago   = mktime(0, 0, 0, date("m",$today), date("d",$today)-1, date("Y",$today));
 $day2ago   = mktime(0, 0, 0, date("m",$today), date("d",$today)-2, date("Y",$today));
 $day3ago   = mktime(0, 0, 0, date("m",$today), date("d",$today)-3, date("Y",$today));
 $day4ago   = mktime(0, 0, 0, date("m",$today), date("d",$today)-4, date("Y",$today));
+$day5ago   = mktime(0, 0, 0, date("m",$today), date("d",$today)-5, date("Y",$today));
 $month1ago = mktime(0, 0, 0, date("m",$today)-1, 10,               date("Y",$today));
 $month2ago = mktime(0, 0, 0, date("m",$today)-2, 10,               date("Y",$today));
-$year1ago  = mktime(0, 0, 0, date("m",$today),   date("d",$today), date("Y",$today)-1);
+$year1ago  = mktime(0, 0, 0, date("m",$today), date("d",$today),   date("Y",$today)-1);
 
 $domain = "@macfreek.nl";
 $tempmailaddresses = array(
@@ -29,13 +35,11 @@ $tempmailaddresses = array(
     strftime("freek%Y%m%d$domain",  $day2ago),  // freek20060914
     strftime("freek%Y%m%d$domain",  $day3ago),  // freek20060913
     strftime("freek%Y%m%d$domain",  $day4ago),  // freek20060912
+    strftime("freek%Y%m%d$domain",  $day5ago),  // freek20060911
     );
 
 $destination = "freek"; // recipient for temporary mail addresses
 $paddingspaces = "                                "; // colon width
-
-$file = $filedir."/".$filename;
-$tempfile = $file.".temp";
 
 $startline = "# begin temporary mail addresses";
 $endline   = "# end temporary mail addresses";
@@ -81,5 +85,7 @@ array_splice($contents, $start+1, $end-$start-1, $tempmailaddresses);
 
 file_put_contents($tempfile, implode("", $contents));
 rename($tempfile, $file);
+
+exec($runafter);
 
 ?>

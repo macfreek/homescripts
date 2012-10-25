@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Small script that sends a test message to a specified SMTP server. It's primary use is to test a backup mail server."""
 
 import smtplib
 import time
