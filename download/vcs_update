@@ -35,6 +35,9 @@ do
 	echo $i:
 	cd $i
 	git fetch --all
+	if grep svn-remote .git/config > /dev/null; then
+		git svn fetch --all
+	fi
 	cd ..
 done
 
