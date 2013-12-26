@@ -1,10 +1,17 @@
 #!/usr/bin/env python
 """Small script that sends a test message to a specified SMTP server. It's primary use is to test a backup mail server."""
 
+from __future__ import print_function
+
 import smtplib
 import time
 import socket
 import optparse
+
+try:
+    input = raw_input  # Python 2.x compatibility
+except NameError:
+    pass
 
 parser = optparse.OptionParser()
 parser.add_option("-f", "--from", dest="fromaddr", help="From mail address")
@@ -13,7 +20,7 @@ parser.add_option("-s", "--server", dest="toserver", help="Delivery server")
 (options, args) = parser.parse_args()
 
 def prompt(prompt):
-    return raw_input(prompt).strip()
+    return input(prompt).strip()
 
 if options.fromaddr != None:
     fromaddr = options.fromaddr
@@ -37,12 +44,12 @@ body = ("This is a test email.\r\n\r\nFrom: %s\r\nOriginating server: %s\r\nTo: 
 
 msg = headers + body
 
-print "Message length is " + repr(len(msg))
+print("Message length is " + repr(len(msg)))
 
 try:
-    print "connecting to",toserver
+    print("connecting to",toserver)
     server = smtplib.SMTP(toserver)
-    print "sending EHLO message"
+    print("sending EHLO message")
     server.set_debuglevel(1)
     server.ehlo(thisserver)
     # Optional: SASL authentication
@@ -50,5 +57,5 @@ try:
     server.sendmail(fromaddr, toaddrs, msg)
     server.quit()
 except smtplib.SMTPException as e:
-    print str(e)
+    print(str(e))
 
