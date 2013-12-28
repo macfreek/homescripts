@@ -11,9 +11,20 @@ import optparse
 
 try:
     from dns.resolver import query
+    from dns.name import from_text as dns_from_text
+    def dns_encode(domain):
+        return str(dns_from_text(domain))[:-1]
 except ImportError:
     def query(qname, rdtype):
         return []
+    def dns_encode(domain):
+        labels = []
+        for label in domain.split('.'):
+            try:
+                labels.append(label)
+            except UnicodeError:
+                labels.append('xn--' + label.encode('punycode').decode('ascii'))
+        return ".".join(labels)
 
 try:
     input = raw_input  # Python 2.x compatibility
@@ -43,6 +54,10 @@ def get_mx_server(email):
         return str(mx_rr[0].exchange)
     return None
 
+def email_encode(emailaddress):
+    """Given a Unicode email address, return a UTF-8/Punycode encoded byte"""
+    user, domain = emailaddress.rsplit('@', 1)
+    return user + '@' + dns_encode(domain)
 
 try:
     if options.fromaddr != None:
@@ -74,6 +89,7 @@ except KeyboardInterrupt:
     print("Aborted")
     sys.exit(1)
 
+# TODO: use US_ASCII encoding in the headers.
 # Add the From: and To: headers at the start!
 headers = ("From: %s\r\nTo: %s\r\nSubject: test mail %s\r\n\r\n"
        % (fromaddr, ", ".join(toaddrs), time.strftime('%y%m%d %H:%M:%S')))
@@ -82,7 +98,7 @@ body = ("This is a test email.\r\n\r\nFrom: %s\r\nOriginating server: %s\r\nTo: 
 
 msg = headers + body
 
-print("Message length is " + repr(len(msg)))
+print("Message length is %d" % len(msg))
 
 try:
     print("connecting to %s" % toserver)
@@ -92,8 +108,33 @@ try:
     server.ehlo(thisserver)
     # Optional: SASL authentication
     # server.login(user, password)
-    server.sendmail(fromaddr, toaddrs, msg)
-    server.quit()
+
+    esmtp_opts = []
+    if server.has_extn('size'):
+        esmtp_opts.append("SIZE=%d" % len(msg))
+    if server.has_extn('8bitmime'):
+        esmtp_opts.append('BODY=8BITMIME')
+    if server.has_extn('smtputf8'):
+        esmtp_opts.append('SMTPUTF8')
+    (code, resp) = server.mail(fromaddr, esmtp_opts)
+    if code != 250:
+        raise SMTPSenderRefused(code, resp, fromaddr)
+
+    for addr in toaddrs:
+        # Note: only supports IDN (part after the @), not yet international email (part before the @)
+        enc_addr = email_encode(addr)
+        print("Adding recipient %s (as %s)" % (addr, enc_addr))
+        (code, resp) = server.rcpt(enc_addr)
+        if code not in (250, 251):
+            raise SMTPRecipientsRefused(senderrs)
+    
+    (code, resp) = server.data(msg.encode('utf-8'))
+    if code != 250:
+        raise SMTPDataError(code, resp)
+    
 except smtplib.SMTPException as e:
     print(str(e))
+finally:
+    server.quit()
+
 
