@@ -10,7 +10,7 @@ import socket
 import optparse
 
 try:
-    from dns.resolver import query
+    from dns.resolver import query, NoNameservers
     from dns.name import from_text as dns_from_text
     def dns_encode(domain):
         return str(dns_from_text(domain))[:-1]
@@ -70,7 +70,10 @@ def get_mx_server(email):
     May return None if no MX record is found or the dnspython library is not 
     installed."""
     domain = email.rsplit('@', 1)[-1]
-    mx_rr = query(domain, 'MX')
+    try:
+        mx_rr = query(domain, 'MX')
+    except NoNameservers:
+        return None
     if len(mx_rr) > 0:
         return str(mx_rr[0].exchange)
     return None
