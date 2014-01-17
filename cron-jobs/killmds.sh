@@ -1,7 +1,5 @@
 #!/bin/sh
-# Kill resource-consuming mds and mdworker, the indexers for SpotLight
-while true
-do
-    killall mds mdworker 2> /dev/null
-    sleep 1
-done
+# Pause resource-consuming mds and mdworker, the indexers for SpotLight
+# This gives them 0% CPU time. Killing (terminating) these processes 
+# altogether is not useful, as launchd relaunches them.
+sudo killall -STOP mds mdworker mds_stores mdflagwriter
