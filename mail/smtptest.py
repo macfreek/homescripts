@@ -85,14 +85,19 @@ def get_mx_server(domain):
     return None
 
 
-def send_mail(fromaddr, toaddrs, thisserver, toserver, usetls=False, username=None, password=None):
+def send_mail(fromaddr, toaddrs, thisserver, toserver, toport=25, usetls=False, username=None, password=None):
     try:
-        print("connecting to %s" % toserver)
-        server = SMTP(toserver)
-        print("sending EHLO message")
+        server = SMTP()
         server.set_debuglevel(1)
+        print("connecting to %s" % toserver)
+        server.connect(toserver, toport)
+    except smtplib.SMTPException as e:
+        print(str(e))
+    try:
         if usetls:
+            server.ehlo(thisserver)
             server.starttls()
+        
         server.ehlo(thisserver)
         if username:
             # Optional: SASL authentication
@@ -150,9 +155,10 @@ if __name__ == "__main__":
     parser.add_option("-t", "--to", dest="toaddrs", help="To mail address. May be used multiple times.", action="append", default=[])
     parser.add_option("-o", "--origin", dest="thisserver", help="Originating server")
     parser.add_option("-s", "--server", dest="toserver", help="Delivery server")
+    parser.add_option("-p", "--port", dest="port", default=25, help="Port for delivery server")
     parser.add_option("--tls", dest="usetls", default=False, action="store_true", help="Use TLS encryption")
     parser.add_option("-u", "--user", dest="username", help="Username for authentication")
-    parser.add_option("-p", "--password", dest="password", help="Password for authentication")
+    parser.add_option("--password", dest="password", help="Password for authentication")
     (options, args) = parser.parse_args()
     
     try:
@@ -186,8 +192,10 @@ if __name__ == "__main__":
                     toserver = mxserver
             else:
                 toserver = prompt("Server: ")
+        if options.username is not None and options.password is None:
+            options.password = prompt("Password (for username %s): " % options.username)
         
-        send_mail(fromaddr, toaddrs, thisserver, toserver, options.usetls, options.username, options.password)
+        send_mail(fromaddr, toaddrs, thisserver, toserver, options.port, options.usetls, options.username, options.password)
         
         sys.exit(0)
     except KeyboardInterrupt:
