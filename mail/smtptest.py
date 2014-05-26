@@ -59,6 +59,8 @@ class Email(object):
         return self.encoded_user() + b'@' + self.encoded_domain()
     def encoded_str(self):
         return self.encoded().decode('ascii')
+    def encoded_mailheader(self): # crippled.
+        return self.encoded_user().decode('utf-8') + '@' + self.domain
     def human_readable(self):
         utf = self.__str__()
         ascii = self.encoded_str()
@@ -112,7 +114,7 @@ def send_mail(fromaddr, toaddrs, thisserver, toserver, toport=25, usetls=False, 
             Email.has_utf8 = False
         
         headers = ("From: %s\r\nTo: %s\r\nSubject: test mail %s\r\nContent-Type: text/plain; charset=\"utf-8\"\r\n\r\n"
-               % (fromaddr.encoded_str(), ", ".join([addr.encoded_str() for addr in toaddrs]), time.strftime('%y%m%d %H:%M:%S')))
+               % (fromaddr.encoded_str(), ", ".join([addr.encoded_mailheader() for addr in toaddrs]), time.strftime('%y%m%d %H:%M:%S')))
         body = ("This is a test email.\r\n\r\nFrom: %s\r\nOriginating server: %s\r\nTo: %s\r\nServer: %s\r\n"
                % (fromaddr, thisserver, ", ".join([addr.human_readable() for addr in toaddrs]), toserver))
         
