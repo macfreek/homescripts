@@ -10,6 +10,10 @@ However, it seems impossible to get the number of open files.
 Hence, LSOF <ftp://lsof.itap.purdue.edu/pub/tools/unix/lsof> is used.
 """
 
+__author__ = "Freek Dijkstra <software@macfreek.nl>"
+__version__ = "1.0"
+__licence__ = "public domain"
+
 import os
 import subprocess
 import locale
