@@ -6,7 +6,8 @@ if [ -d "/Volumes/Media" ]; then
     find /Volumes/Media -perm +002 ! -type l -exec echo '{}: world writable' \;
 fi
 
-find /Users/freek /Users/caroline -perm +020 ! -type l -exec echo '{}: group writable' \;
+# find group writable files
+# find /Users/freek /Users/caroline -perm +020 ! -type l -exec echo '{}: group writable' \;
 
 # find non-executable folders
 find /Users -type d ! -perm -500 -exec echo '{}: not browsable or readable' \;
@@ -23,4 +24,8 @@ if [ -d "/Volumes/Media" ]; then
     find /Volumes/Media  ! -group staff -o ! -user freek  -exec echo '{}: not owned by freek:staff' \;
 fi
 
-# Check for dirs without any executable bit set
+# Check for files with inode creation time near epoch
+find . ! -newerBt '1971-01-01' ! -type l -exec echo '{}: inode creation near epoch' \;
+
+# Check for files with inode creation time in the future
+find . -Btime -1 -exec echo '{}: inode creation time in future' \;
