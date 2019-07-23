@@ -22,8 +22,12 @@ import sys
 import os
 import optparse
 import csv
+import io
 
-reader = csv.reader(sys.stdin, 'excel')
+# wrap stdin in order to specify ISO 8859-1 encoding
+input_stream = io.TextIOWrapper(sys.stdin.buffer, encoding='latin-1')
+
+reader = csv.reader(input_stream, 'excel')
 writer = csv.writer(sys.stdout, 'excel-tab')
 try:
     for row in reader:
