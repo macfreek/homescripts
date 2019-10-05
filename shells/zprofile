@@ -1,0 +1,111 @@
+# User-defined zprofile file for zsh login shells
+# 
+# Typically contains definitions of environment variables. For local variables, use .zshrc
+# equivalent to ~/.login and ~/.profile for csh/tcsh and sh/bash respectively.
+
+# Set basic PATH
+PATH="/bin:/sbin:/usr/bin:/usr/sbin"
+
+# PATH defined by softpkg (required for mremote.science.uva.nl)
+if [ -x /usr/local/bin/softpkg ]; then
+	eval `/usr/local/bin/softpkg`
+fi
+
+# Add more paths to $PATH
+
+# Important paths: Add to beginning of $PATH
+if [ -x /opt/local/bin ]; then
+	PATH="/opt/local/bin:$PATH"
+	MANPATH="/opt/local/share/man:$MANPATH"
+fi
+if [ -x /opt/local/sbin ]; then
+	PATH="/opt/local/sbin:$PATH"
+fi
+if [ -x /usr/local/sbin ]; then
+	PATH="/usr/local/sbin:$PATH"
+fi
+if [ -x /usr/local/bin ]; then
+	PATH="/usr/local/bin:$PATH"
+fi
+if [ -x $HOME/bin ] ; then
+	PATH="$HOME/bin:$PATH"
+fi
+
+# Less important paths: Add to end of $PATH
+if [ -x /usr/local/texlive/2010/bin/universal-darwin ]; then
+	PATH="$PATH:/usr/local/texlive/2010/bin/universal-darwin"
+elif [ -x /usr/local/texlive/2009/bin/universal-darwin ]; then
+	PATH="$PATH:/usr/local/texlive/2009/bin/universal-darwin"
+elif [ -x /usr/local/texlive/2008/bin/universal-darwin ]; then
+	PATH="$PATH:/usr/local/texlive/2008/bin/universal-darwin"
+fi
+if [ -x /opt/local/lib/mysql5/bin ]; then
+	PATH="/opt/local/lib/mysql5/bin:$PATH"
+fi
+if [ -x /opt/local/Library/Frameworks/Python.framework/Versions/Current/bin ]; then
+	PATH="$PATH:/opt/local/Library/Frameworks/Python.framework/Versions/Current/bin"
+	MANPATH="$MANPATH:/opt/local/Library/Frameworks/Python.framework/Versions/Current/share/man"
+fi
+if [ -x /usr/X11R6/bin ]; then
+	PATH="$PATH:/usr/X11R6/bin"
+fi
+if [ -x /Developer/usr/bin ]; then
+	PATH="$PATH:/Developer/usr/bin"
+fi
+
+# Add local folder as last option (some people argue it should go first)
+PATH="$PATH:."
+MANPATH="$MANPATH:."
+export PATH
+export MANPATH
+
+if [ "$TERM" != "ANSI" ]; then
+	# These commands are ignored on really stupid (ANSI terminal) machines, like mremote
+	export USER=`id -un`
+	export HOSTNAME=`/bin/hostname -s`
+
+	export CLASSPATH=".:/Library/Java/Extensions:/Library/Java/JavaVirtualMachines/jdk1.8.0_60.jdk/Contents/Home"
+	# export CVS_RSH=ssh
+	export LC_ALL=en_GB.UTF-8
+	export LANG=en_GB.UTF-8
+fi
+
+if /usr/bin/which mate_wait 2> /dev/null | grep "^/.*/mate_wait$" > /dev/null 2>&1; then
+	export EDITOR=mate_wait
+elif /usr/bin/which vim 2> /dev/null | grep "^/.*/vim$" > /dev/null 2>&1; then
+	export EDITOR=vim
+elif /usr/bin/which vi 2> /dev/null | grep "^/.*/vi$" > /dev/null 2>&1; then
+	export EDITOR=vi
+elif /usr/bin/which nano 2> /dev/null | grep "^/.*/nano$" > /dev/null 2>&1; then
+	export EDITOR=nano
+elif /usr/bin/which pico 2> /dev/null | grep "^/.*/pico$" > /dev/null 2>&1; then
+	export EDITOR=pico
+fi
+
+# Python specifics
+if [ -f $HOME/.pythonstartup ]; then
+	export PYTHONSTARTUP="$HOME/.pythonstartup"
+fi
+
+# Perl specifics
+if [ -x /opt/local/lib/perl5/5.8.8 ]; then
+	export PERL5LIB="/opt/local/lib/perl5/5.8.8:/opt/local/lib/perl5/site_perl/5.8.8"
+	export PERL5LIB
+fi
+
+# Globus Toolkit specifics
+if [ "$GLOBUS_LOCATION" = "" ] && [ -d /usr/local/globus ]; then 
+	export GLOBUS_LOCATION="/usr/local/globus"
+elif [ "$GLOBUS_LOCATION" = "" ] && [ -d /usr/local/gt ]; then
+	export GLOBUS_LOCATION="/usr/local/gt"
+fi
+if [ -r "$GLOBUS_LOCATION" ]; then
+	source $GLOBUS_LOCATION/etc/globus-user-env.sh
+fi
+
+# Hadoop (SURFsara hathi cluster) specifics
+if [ -r "$HOME/Repository/hathi-client/conf/settings.osx" ]; then 
+	cd "$HOME/Repository/hathi-client"
+	source "conf/settings.osx"
+	cd - > /dev/null
+fi

@@ -1,0 +1,91 @@
+# User-defined zshrc file for interactive zsh shells.
+# Typically contains definitions of local variables. For environment variables, use .zprofile
+# equivalent to ~/.cshrc and ~/.bashrc for csh/tcsh and sh/bash respectively.
+
+# Search path for the cd command
+#cdpath=(.. ~)
+
+# Use hard limits, except for a smaller stack and no core dumps
+unlimit
+limit stack 8192
+limit core 0
+limit -s
+
+# Set default permission to rwxr-xr-x or rw-r--r--
+umask 022
+
+source ~/.zalias
+
+source ~/.zshcompl
+
+# Set prompts
+#PROMPT='%m%# '    # default prompt
+#RPROMPT=' %~'     # prompt for right side of screen
+PROMPT="%B[%{${fg[red]}%}%n%{${fg[white]}%}@%{${fg[silver]}%}%m%{${fg[white]}%}]%b %3~%# "
+#RPROMPT="%B[%b%T%B]%b"
+RPROMPT=''
+
+# Some environment variables
+
+HISTSIZE=1000
+DIRSTACKSIZE=20
+
+# Evaluate dircolors
+if which dircolors | grep "^/" > /dev/null 2>&1; then
+	if [ -d /etc/DIR_COLORS ]; then
+		eval `dircolors /etc/DIR_COLORS -b --sh`
+	else
+		eval `dircolors --sh`
+	fi
+else
+	export LS_COLORS="no=00:fi=00:di=01;36:"
+fi
+
+#set -x   # Display executed commands (turn of with set +x)
+#setopt NO_BEEP
+#setopt CORRECT
+#setopt PROMPT_SUBST
+#unsetopt IGNORE_EOF
+#setopt PRINT_EXIT_VALUE
+
+# See man zshmodules for info on these modules
+autoload colors zsh/terminfo
+
+# zmv is a programmable mv
+autoload -U zmv
+# zmv "programmable rename"
+# Replace spaces in filenames with a underline
+# $ zmv '* *' '$f:gs/ /_'
+# Change the suffix from *.sh to *.pl
+# $ zmv -W '*.sh' '*.pl'
+# lowercase/uppercase all files/directories
+# $ zmv '(*)' '${(L)1}' # lowercase
+# $ zmv '(*)' '${(U)1}' # uppercase
+
+# Use built-in prompts (see "prompt -h" for info)
+#autoload -U promptinit
+#promptinit
+
+# Default key-bindings, I can't live without ;-)
+bindkey -e  # emacs-like mode
+bindkey "^A" beginning-of-line
+bindkey "^E" end-of-line
+bindkey "^B" backward-word
+bindkey "^N" forward-word
+bindkey "^?" backward-delete-char
+bindkey "^[[3~" delete-char
+
+
+# XTerm Title process showing.
+#case $TERM in (xterm*|rxvt|screen)
+#        precmd () { print -Pn "\e]0;%n@%m: %~\a"
+#                    echo -n ${(l:$COLUMNS:::):-}
+#                  }                                                                    
+#        preexec () { print -Pn "\e]0;%n@%m: $3\a" }
+#        ;;
+#esac
+
+# History saving through sessions
+HISTFILE=$HOME/.zshhistory
+HISTSIZE=3000
+SAVEHIST=3000
